@@ -1,0 +1,128 @@
+version: '3'
+
+networks:
+  app-tier:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+  db:
+    name: db
+
+services:
+  taxi:
+    build:
+      context: ./AirportTaxi
+      dockerfile: docker/Dockerfile
+    privileged: true
+    volumes:
+      - ./AirportTaxi:/var/www/app
+      - ./AirportTaxi/docker/setup.sh:/usr/bin/setup
+    ports:
+      - 4455:443
+    environment:
+      - DOMAIN_API
+      - MAIL_DRIVER
+      - MAIL_MAILER
+      - MAIL_HOST
+      - MAIL_PORT
+      - MAIL_USERNAME
+      - MAIL_PASSWORD
+      - MAIL_ENCRYPTION
+    networks:
+      app-tier:
+        ipv4_address: 10.5.0.4
+      db: null
+
+  wifi_admin:
+    build:
+      context: ./WifiAdmin
+      dockerfile: docker/Dockerfile
+    privileged: true
+    restart: always
+    volumes:
+      - ./WifiAdmin:/var/www/app
+      - ./WifiAdmin/docker/setup.sh:/usr/bin/setup
+    ports:
+      - 4400:443
+    environment:
+      - DOMAIN_API
+      - MAIL_DRIVER
+      - MAIL_MAILER
+      - MAIL_HOST
+      - MAIL_PORT
+      - MAIL_USERNAME
+      - MAIL_PASSWORD
+      - MAIL_ENCRYPTION
+    networks:
+      app-tier:
+        ipv4_address: 10.5.0.3
+      db: null
+
+  wifi_api:
+    build:
+      context: ./WifiAPI
+      dockerfile: docker/Dockerfile
+    privileged: true
+    restart: always
+    volumes:
+      - ./WifiAPI:/var/www/app
+      - ./WifiAPI/docker/setup.sh:/usr/bin/setup
+    ports:
+      - 5000:443
+    environment:
+      - MAIL_DRIVER
+      - MAIL_MAILER
+      - MAIL_HOST
+      - MAIL_PORT
+      - MAIL_USERNAME
+      - MAIL_PASSWORD
+      - MAIL_ENCRYPTION
+    networks:
+      app-tier:
+        ipv4_address: 10.5.0.2
+      db: null
+      
+  mysql:
+    image: mysql:5.7
+    restart: always
+    volumes:
+      - ./docker/mysql:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+    ports:
+      - 3306:3306
+    networks:
+      - db
+
+  redis:
+    image: "redis"
+    restart: always
+    command: redis-server
+    ports:
+      - "6379:6379"
+    networks:
+      - db
+
+  phpmyadmin:
+    depends_on:
+      - mysql
+    image: phpmyadmin
+    restart: always
+    ports:
+      - 8080:80
+    environment:
+      - PMA_ARBITRARY=1
+    networks:
+      - db
+      
+  mail:
+    image: mailhog/mailhog
+    restart: always
+    ports:
+      - 1025:1025
+      - 8025:8025
+    volumes:
+      - ./mail-data:/data
+    networks:
+      - db
